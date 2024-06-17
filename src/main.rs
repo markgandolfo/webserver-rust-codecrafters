@@ -25,11 +25,20 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
 
     let request = String::from_utf8_lossy(&buf);
     let request = Request::from_string(&request);
+    println!("req: {}", request.target.as_str());
 
     match request.target.as_str() {
         "/" => {
             stream.write(b"HTTP/1.1 200 OK\r\n\r\n")?;
             stream.write(b"Hello, World!")?;
+        }
+        path if path.starts_with("/echo/") => {
+            println!("Here");
+            if let Some(text) = path.strip_prefix("/echo/") {
+                stream.write(format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", text.len(), text).as_bytes())?;
+            } else {
+                stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n")?;
+            }
         }
         _ => {
             stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n")?;
