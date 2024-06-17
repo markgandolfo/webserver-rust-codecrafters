@@ -1,5 +1,8 @@
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::{
+    io::{Read, Write},
+    net::{TcpListener, TcpStream},
+    thread,
+};
 
 #[derive(Debug)]
 struct Request {
@@ -28,7 +31,7 @@ impl Request {
     }
 }
 
-fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
+async fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     let mut buf = [0; 1024];
     stream.read(&mut buf)?;
 
@@ -38,7 +41,6 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     match request.target.as_str() {
         "/" => {
             stream.write(b"HTTP/1.1 200 OK\r\n\r\n")?;
-            stream.write(b"Hello, World!")?;
         }
         "/user-agent" => {
             println!("user agent: {}", request.user_agent);
@@ -81,9 +83,7 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(mut _stream) => {
-                if let Err(e) = handle_client(_stream) {
-                    eprintln!("failed to handle client: {}", e);
-                }
+                thread::spawn(|| handle_client(_stream));
             }
             Err(e) => {
                 eprintln!("failed to accept client: {}", e);
