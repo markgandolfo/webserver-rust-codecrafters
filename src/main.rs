@@ -1,6 +1,9 @@
 use std::{
+    env,
+    fs::File,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
+    path::Path,
     thread,
 };
 
@@ -31,7 +34,7 @@ impl Request {
     }
 }
 
-async fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
+fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     let mut buf = [0; 1024];
     stream.read(&mut buf)?;
 
@@ -43,7 +46,6 @@ async fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
             stream.write(b"HTTP/1.1 200 OK\r\n\r\n")?;
         }
         "/user-agent" => {
-            println!("user agent: {}", request.user_agent);
             stream.write(
                 format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}",
@@ -67,6 +69,24 @@ async fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
                 stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n")?;
             }
         }
+        path if path.starts_with("/files/") => {
+            if let Some(file_name) = path.strip_prefix("/files/") {
+                if let Some(dir) = env::args().nth(2) {
+                    println!("Directory: {}", &dir);
+                    if let Ok(mut file) = File::open(Path::new(&dir).join(file_name)) {
+                        let mut buf = Vec::new();
+                        file.read_to_end(&mut buf).unwrap();
+                        stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n", buf.len()).as_bytes()).unwrap();
+                        stream.write_all(buf.as_slice()).unwrap();
+                    } else {
+                        stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").unwrap();
+                    }
+                }
+            } else {
+                eprint!("the file prefix couldn't be stripped");
+                stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").unwrap();
+            }
+        }
         _ => {
             stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n")?;
         }
@@ -83,7 +103,7 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(mut _stream) => {
-                thread::spawn(|| handle_client(_stream));
+                thread::spawn(move || handle_client(_stream));
             }
             Err(e) => {
                 eprintln!("failed to accept client: {}", e);
