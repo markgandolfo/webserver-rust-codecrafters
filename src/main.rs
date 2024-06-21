@@ -29,7 +29,7 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     let request = String::from_utf8_lossy(&buf);
     let request = request::Request::from_string(&request);
 
-    let content_encoding = if request.accept_encoding == "gzip" {
+    let content_encoding = if request.accept_encoding.contains("gzip") {
         "gzip"
     } else {
         ""
